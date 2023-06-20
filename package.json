@@ -1,0 +1,16 @@
+{
+  "name": "dslite-remote-control",
+  "version": "1.0.0",
+  "description": "",
+  "main": "api.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Jan Bölsche <jan@lagomorph.de> (https://regular.codes/)",
+  "license": "ISC",
+  "dependencies": {
+    "rc": "^1.2.8",
+    "websocket": "^1.0.34"
+  }
+}
