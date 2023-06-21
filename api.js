@@ -1,25 +1,47 @@
 const {client} = require('websocket')
+const util = require('util')
 const DS = require('../dslite-proxy')
 const proxyConfig = require('rc')('dslite-proxy')
+console.log(proxyConfig)
 
-module.exports = function getApi(log, cb) {
-  DS(log, proxyConfig, err=>{
+module.exports = function getApi(opts, cb) {
+  opts = opts || {}
+  const log = opts.log || (()=>{})
+  DS(log, proxyConfig, {onNewEndpoint}, err=>{
     if (err) return cb(err)
+    newEndpoint(proxyConfig.port, null, cb)
+  })
 
+  const endpoints = {}
+
+  function onNewEndpoint(name, port, subProtocol, cb) {
+    log('NEW', name, port, subProtocol)
+    newEndpoint(port, subProtocol, (err, api)=>{
+      if (err) {
+        consoleo.error(err)
+        return cb(err)
+      }
+      endpoints[port] = api
+      cb(null, {newEndpoint: port})
+    })
+  }
+
+  function newEndpoint(port, subProtocol, cb) {
     const c = new client()
     c.on('connectFailed', err => {
       log('connect to server failed:', err.message)
+      cb(err)
     })
 
     c.on('connect', (conn) => {
-      log("Connected to server")
+      log(`Connected to ${port} ${subProtocol}`)
       makeAPI(conn, cb)
     })
 
-    const serverUrl = `ws://localhost:${proxyConfig.port}/`
+    const serverUrl = `ws://127.0.0.1:${port}/`
     log("connecting to server: ", serverUrl)
-    c.connect(serverUrl, null);
-  })
+    c.connect(serverUrl, subProtocol)
+  }
 
   function makeAPI(conn, cb) {
     let api
@@ -28,13 +50,23 @@ module.exports = function getApi(log, cb) {
     conn.on('message', msg => {
       if (msg.type === 'utf8') {
         let j = JSON.parse(msg.utf8Data)
-        const {response, data, event} = j
+        let {response, data, error,  event} = j
+        if (j.newEndpoint) {
+          data = endpoints[j.newEndpoint]
+          delete endpoints[j.newEndpoint]
+        }
         if (cbs[response]) {
-          // TODO: how do errors look?
-          cbs[response](null, data)
+          if (error) {
+            const err = new Error(j.data.message)
+            err.code = j.error
+            cbs[response](err)
+          } else {
+            cbs[response](null, data)
+          }
         } else if (response == 1) {
+          const decorate = opts.promisify ? util.promisify : (x=>x)
           const api = data.commands.map(command=>{
-            return [command, function() {
+            return [command, decorate(function() {
               id++
               const args = Array.from(arguments)
               const cb = args.pop()
@@ -44,8 +76,7 @@ module.exports = function getApi(log, cb) {
                 id,
                 data: args
               }))
-
-            }]
+            })]
           })
           cb(null, Object.fromEntries(api))
         }
