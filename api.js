@@ -2,17 +2,26 @@ const {client} = require('websocket')
 const util = require('util')
 const DS = require('../dslite-proxy')
 const proxyConfig = require('rc')('dslite-proxy')
-console.log(proxyConfig)
 
 module.exports = function getApi(opts, cb) {
   opts = opts || {}
   const log = opts.log || (()=>{})
-  DS(log, proxyConfig, {onNewEndpoint}, err=>{
-    if (err) return cb(err)
-    newEndpoint(proxyConfig.port, null, cb)
-  })
-
   const endpoints = {}
+
+  const ret = new Promise( (resolve, reject)=>{
+    DS(log, proxyConfig, {onNewEndpoint}, err=>{
+      if (err) return reject(err)
+      newEndpoint(proxyConfig.port, null, (err, api)=>{
+        if (err) return reject(err)
+        resolve(api)
+      })
+    })
+  })
+  if (cb) {
+    ret.then(api=>cb(null, api)).error(err=>cb(err))
+  }
+  return ret
+
 
   function onNewEndpoint(name, port, subProtocol, cb) {
     log('NEW', name, port, subProtocol)

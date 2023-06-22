@@ -1,31 +1,42 @@
 // jshint esversion: 11
-
-
-const API = require('./api')
+const {join} = require('path')
+const DSLite = require('./api')
 const log = function() {
-  console.log(Array.from(arguments).join(' '))
+  //console.log(Array.from(arguments).join(' '))
 }
 
-API({log, promisify: true }, async (err, ds)=>{
-  if (err) return log(err)
+async function run(target, program) {
+  const ds = await DSLite({log, promisify: true})
 
   const {version} = await ds.getVersion()
-  console.log(version)
+  console.log('DSLite version:', version)
 
-  const {cores} = await ds.configure("/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage/CC2640R2F.ccxml")
+  const {cores} = await ds.configure(target)
   console.log('cores', cores)
   const core = await ds.createSubModule(cores[0])
   
   await core["cio.willHandleInput"](true)
   await core["targetState.connect"]()
-  await core["callstack.fetch"]()
   await core["settings.set"]({
     AutoRunToLabelName: "main"
   })
   await core["targetState.getResets"]()
-  await core["symbols.loadProgram"](
-    "/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage/uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out"
-  )
+  await core["symbols.loadProgram"](program)
+
+  // TODO: how do wewait for completion?
+  // wait for event: [Cortex_M3_0] DS-> Target state changed to "Suspended - H/W Breakpoint"
+
   const stack = await core["callstack.fetch"]()
   console.log(stack)
-})
+}
+
+try {
+  const prefix = '/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage' 
+  run(
+    join(prefix, 'CC2640R2F.ccxml'),
+    join(prefix, 'uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out')
+  )
+} catch(err) {
+  console.error(err.message)
+  process.exit(1)
+}
