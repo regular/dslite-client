@@ -14,29 +14,39 @@ async function run(target, program) {
   const {cores} = await ds.configure(target)
   console.log('cores', cores)
   const core = await ds.createSubModule(cores[0])
-  
-  await core["cio.willHandleInput"](true)
-  await core["targetState.connect"]()
-  await core["settings.set"]({
+
+  await core.cio.willHandleInput(true)
+  await core.targetState.connect()
+  await core.settings.set({
     AutoRunToLabelName: "main"
   })
-  await core["targetState.getResets"]()
-  await core["symbols.loadProgram"](program)
+  await core.targetState.getResets()
+  await core.symbols.loadProgram(program)
 
-  // TODO: how do wewait for completion?
-  // wait for event: [Cortex_M3_0] DS-> Target state changed to "Suspended - H/W Breakpoint"
+  await core.waitForEvent({
+    good: ({data, event}) => event == 'targetState.changed' && data.description == 'Suspended - H/W Breakpoint',
+    timeout: 6 * 1000,
+  }).catch(err=>{
+    console.error('device did not enter expected target state')
+    throw err
+  })
+  console.log('SUSPENDED')
 
-  const stack = await core["callstack.fetch"]()
-  console.log(stack)
+  const stack = await core.callstack.fetch()
+  console.log(stack.frames[0])
 }
 
-try {
+async function main() {
   const prefix = '/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage' 
-  run(
-    join(prefix, 'CC2640R2F.ccxml'),
-    join(prefix, 'uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out')
-  )
-} catch(err) {
-  console.error(err.message)
-  process.exit(1)
+  try {
+    await run(
+      join(prefix, 'CC2640R2F.ccxml'),
+      join(prefix, 'uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out')
+    )
+  } catch(err) {
+    console.error(err.stack)
+    process.exit(1)
+  }
 }
+
+main()
