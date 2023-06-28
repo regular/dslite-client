@@ -10,7 +10,9 @@
   "author": "Jan Bölsche <jan@lagomorph.de> (https://regular.codes/)",
   "license": "ISC",
   "dependencies": {
+    "dont-stop-believing": "^1.0.0",
     "rc": "^1.2.8",
+    "serialport": "^11.0.0",
     "websocket": "^1.0.34"
   }
 }

@@ -5,13 +5,20 @@ const log = function() {
   //console.log(Array.from(arguments).join(' '))
 }
 
-async function run(target, program) {
+async function run(target, program, comPort) {
   const ds = await DSLite({log, promisify: true})
 
   const {version} = await ds.getVersion()
   console.log('DSLite version:', version)
 
-  const {cores} = await ds.configure(target)
+  let cores
+  try {
+    const data = await ds.configure(target)
+    cores = data.cores
+  } catch(err) {
+    console.error('Unable to configure target: ' + err.message)
+    return false
+  }
   console.log('cores', cores)
   const core = await ds.createSubModule(cores[0])
 
@@ -21,7 +28,12 @@ async function run(target, program) {
     AutoRunToLabelName: "main"
   })
   await core.targetState.getResets()
-  await core.symbols.loadProgram(program)
+  try {
+    await core.symbols.loadProgram(program)
+  } catch(err) {
+    console.error('Failed to load program. (Wrong MCU model?) '+err.message)
+    return false
+  }
 
   await core.waitForEvent({
     good: ({data, event}) => event == 'targetState.changed' && data.description == 'Suspended - H/W Breakpoint',
@@ -34,19 +46,52 @@ async function run(target, program) {
 
   const stack = await core.callstack.fetch()
   console.log(stack.frames[0])
+
+  serial(comPort)
+  core.targetState.run()
+  await core.waitForEvent({
+    good: ({data, event}) => event == 'targetState.changed' && data.description == 'Running',
+    timeout: 6 * 1000,
+  })
+  console.log('Target is running')
+  return true
 }
 
 async function main() {
-  const prefix = '/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage' 
+  const cloud_storage = '/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage' 
+  const ccxml_dir = '/opt/ti/uniflash/deskdb/content/TICloudAgent/linux/ccs_base/arm'
+  const ccxml2pin = 'cc13xx_cc26xx_2pin_cJTAG_XDS110.ccxml'
+  const aout = join(__dirname, '..', 'chipinfo-fw', 'app/tirtos/ccs/chipinfo-fw.out')
+  //const aout = join(cloud_storage, 'uart2echo_LP_CC2652RB_tirtos7_ticlang.out')
+
+
+  let success
   try {
-    await run(
-      join(prefix, 'CC2640R2F.ccxml'),
-      join(prefix, 'uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out')
+    success = await run(
+      //join(cloud_storage, 'CC2640R2F.ccxml'),
+      //join(cloud_storage, 'b89231b1.ccxml'),
+      //join(__dirname, '..', 'detect', 'CC2652RB1F-L120048P.ccxml'),
+      join(__dirname, '..', 'titect', 'L120048P-CC2652RB1F.ccxml'),
+      //join(ccxml_dir, ccxml2pin),
+      //join(prefix, 'uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out')
+      aout,
+      '/dev/ttyACM0'
     )
   } catch(err) {
     console.error(err.stack)
     process.exit(1)
   }
+  if (!success) process.exit(1)
 }
 
 main()
+
+function serial(path) {
+  const { SerialPort, ReadlineParser } = require('serialport')
+  const baudRate = 115200
+  const port = new SerialPort({ path, baudRate })
+  port.pipe(process.stdout)
+  setTimeout(()=>{
+    port.write('ROBOT PLEASE RESPOND\n')
+  }, 200)
+}
