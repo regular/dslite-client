@@ -9,9 +9,8 @@ module.exports = function getApi(port, opts, cb) {
   const endpoints = {}
 
   const ret = new Promise( (resolve, reject)=>{
-    onNewEndpoint('main', port, null, (err, result)=>{
+    onNewEndpoint(null, port, null, (err, api)=>{
       if (err) return reject(err)
-      const api = endpoints[result.newEndpoint]
       resolve(api)
     })
   })
@@ -28,7 +27,7 @@ module.exports = function getApi(port, opts, cb) {
         return cb(err)
       }
       endpoints[port] = api
-      cb(null, {newEndpoint: port})
+      cb(null, api)
     })
   }
 
@@ -56,10 +55,16 @@ module.exports = function getApi(port, opts, cb) {
       conn.on('message', msg => {
         if (msg.type === 'utf8') {
           let j = JSON.parse(msg.utf8Data)
-          let {response, data, error,  event} = j
-          if (j.newEndpoint) {
-            data = endpoints[j.newEndpoint]
-            delete endpoints[j.newEndpoint]
+          let {response, data, error, event, endpoint} = j
+          if (endpoint) {
+            const {name, port, subProtocol} = endpoint
+            onNewEndpoint(name, port, subProtocol, (err, api)=>{
+              if (cbs[response]) {
+                cbs[response](err, api)
+                delete cbs[response]
+              }
+            })
+            return
           }
           if (event) {
             eventPromises.forEach( ({reject, resolve, filters}) =>{
