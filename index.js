@@ -1,21 +1,18 @@
 const {client} = require('websocket')
 const util = require('util')
-const DS = require('../dslite-proxy')
-const proxyConfig = require('rc')('dslite-proxy')
 const formatEvent = require('../dslite-proxy/format-events')
+const multicb = require('multicb')
 
-module.exports = function getApi(opts, cb) {
+module.exports = function getApi(port, opts, cb) {
   opts = opts || {}
   const log = opts.log || (()=>{})
   const endpoints = {}
 
   const ret = new Promise( (resolve, reject)=>{
-    DS(log, proxyConfig, {onNewEndpoint}, err=>{
+    onNewEndpoint('main', port, null, (err, result)=>{
       if (err) return reject(err)
-      newEndpoint(proxyConfig.port, null, (err, api)=>{
-        if (err) return reject(err)
-        resolve(api)
-      })
+      const api = endpoints[result.newEndpoint]
+      resolve(api)
     })
   })
   if (cb) {
@@ -24,10 +21,10 @@ module.exports = function getApi(opts, cb) {
   return ret
 
   function onNewEndpoint(name, port, subProtocol, cb) {
-    log('NEW', name, port, subProtocol)
+    log('New endpoint', name, port, subProtocol)
     newEndpoint(port, subProtocol, (err, api)=>{
       if (err) {
-        consoleo.error(err)
+        consoleo.error(err.message)
         return cb(err)
       }
       endpoints[port] = api
@@ -93,6 +90,17 @@ module.exports = function getApi(opts, cb) {
                 }))
               })]
             })
+            api.push(['closeSubModule', decorate(cb=>{
+              conn.close()
+              cb(null)
+            })])
+            api.push(['close', decorate(cb=>{
+              const done = multicb()
+              Object.values(endpoints).forEach(api=>{
+                api.closeSubModule(done())
+              })
+              done(cb)
+            })])
             cb(null, fromEntries(api))
           }
         } else if (msg.type === 'binary') {

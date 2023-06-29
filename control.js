@@ -1,9 +1,11 @@
+#!/usr/bin/env node
 // jshint esversion: 11
-const {join} = require('path')
+const {join, resolve} = require('path')
 const DSLite = require('./api')
 const log = function() {
-  //console.log(Array.from(arguments).join(' '))
+  console.log(Array.from(arguments).join(' '))
 }
+const conf = require('rc')('tirun')
 
 async function run(target, program, comPort) {
   const ds = await DSLite({log, promisify: true})
@@ -61,9 +63,20 @@ async function main() {
   const cloud_storage = '/home/regular/.ti/TICloudAgent/tmp/ti_cloud_storage' 
   const ccxml_dir = '/opt/ti/uniflash/deskdb/content/TICloudAgent/linux/ccs_base/arm'
   const ccxml2pin = 'cc13xx_cc26xx_2pin_cJTAG_XDS110.ccxml'
-  const aout = join(__dirname, '..', 'chipinfo-fw', 'app/tirtos/ccs/chipinfo-fw.out')
-  //const aout = join(cloud_storage, 'uart2echo_LP_CC2652RB_tirtos7_ticlang.out')
+  //const aout = join(__dirname, '..', 'chipinfo-fw', 'app/tirtos/ccs/chipinfo-fw.out')
+  const aout = join(cloud_storage, 'uart2echo_LP_CC2652RB_tirtos7_ticlang.out')
 
+  /*
+
+  if (conf._.length !== 3) {
+    throw new Error('too few arguments')
+  }
+
+  let [target, firmware, comPort] = conf._
+  target = resolve(process.cwd(), target)
+  firmware = resolve(process.cwd(), firmware)
+  console.log(target, firmware)
+  */
 
   let success
   try {
@@ -71,11 +84,12 @@ async function main() {
       //join(cloud_storage, 'CC2640R2F.ccxml'),
       //join(cloud_storage, 'b89231b1.ccxml'),
       //join(__dirname, '..', 'detect', 'CC2652RB1F-L120048P.ccxml'),
-      join(__dirname, '..', 'titect', 'L120048P-CC2652RB1F.ccxml'),
-      //join(ccxml_dir, ccxml2pin),
+      //join(__dirname, '..', 'titect', 'L120048P-CC2652RB1F.ccxml'),
+      join(ccxml_dir, ccxml2pin),
       //join(prefix, 'uartecho_CC2640R2_LAUNCHXL_tirtos_ccs.out')
       aout,
       '/dev/ttyACM0'
+      //target, firmware, comPort
     )
   } catch(err) {
     console.error(err.stack)

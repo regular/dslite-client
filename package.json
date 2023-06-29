@@ -1,16 +1,18 @@
 {
-  "name": "dslite-remote-control",
+  "name": "dslite-client",
   "version": "1.0.0",
   "description": "",
-  "main": "api.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "Jan Bölsche <jan@lagomorph.de> (https://regular.codes/)",
   "license": "ISC",
+  "devDependencies": {
+    "dslite-proxy": "github:regular/dslite-proxy"
+  },
   "dependencies": {
-    "dont-stop-believing": "^1.0.0",
+    "multicb": "^1.2.2",
     "rc": "^1.2.8",
     "serialport": "^11.0.0",
     "websocket": "^1.0.34"
