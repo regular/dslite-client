@@ -9,6 +9,9 @@ async function main() {
   const proxy = await startServer(proxyConfig, {log})
   console.log('proxy started')
   const ds = await client(proxy.port, {log, promisify: true})
+  ds.waitForEvent({
+    timeout: 2000
+  })
   console.log(await ds.getVersion())
   await ds.close()
   proxy.stop()

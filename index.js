@@ -52,6 +52,7 @@ module.exports = function getApi(port, opts, cb) {
       let api
       let id = 1
       const cbs = {}
+      const timers = {}
       conn.on('message', msg => {
         if (msg.type === 'utf8') {
           let j = JSON.parse(msg.utf8Data)
@@ -96,6 +97,7 @@ module.exports = function getApi(port, opts, cb) {
               })]
             })
             api.push(['closeSubModule', decorate(cb=>{
+              Object.keys(timers).forEach(clearTimeout)
               conn.close()
               cb(null)
             })])
@@ -117,33 +119,42 @@ module.exports = function getApi(port, opts, cb) {
         "id": id++,
         "data":[]
       }))
-    }
 
-    function enrichApi(api) {
-      api.waitForEvent = function (filters) {
-        return new Promise((resolve, reject)=>{
-          const {good, bad, timeout} = filters
-          if (timeout) setTimeout( ()=>reject(new Error(`timeout of ${timeout} ms while waiting for event`)), timeout)
-          eventPromises.push({filters: filters, reject, resolve})
-        })
+      function enrichApi(api) {
+        api.waitForEvent = function (filters) {
+          let timer
+          return new Promise((resolve, reject)=>{
+            const {good, bad, timeout} = filters
+            if (timeout) {
+              timer = setTimeout( ()=>reject(new Error(`timeout of ${timeout} ms while waiting for event`)), timeout)
+              timers[timer] = true
+            }
+            eventPromises.push({filters: filters, reject, resolve})
+          }).finally(()=>{
+            if (timer) {
+              clearTimeout(timer)
+              delete timers[timer]
+            }
+          })
+        }
+        return api
       }
-      return api
-    }
 
-    function fromEntries(entries) {
-      const ret = {}
-      for(const [path, x] of entries) {
-        insert(ret, path.split('.'), x)
-      }
-      return enrichApi(ret)
+      function fromEntries(entries) {
+        const ret = {}
+        for(const [path, x] of entries) {
+          insert(ret, path.split('.'), x)
+        }
+        return enrichApi(ret)
 
-      function insert(o, path, x) {
-        const [p, ...rest] = path
-        if (rest.length == 0) {
-          o[p] = x
-        } else {
-          o[p] = o[p] || {}
-          insert(o[p], rest, x)
+        function insert(o, path, x) {
+          const [p, ...rest] = path
+          if (rest.length == 0) {
+            o[p] = x
+          } else {
+            o[p] = o[p] || {}
+            insert(o[p], rest, x)
+          }
         }
       }
     }
